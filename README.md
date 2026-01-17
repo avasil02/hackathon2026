@@ -16,7 +16,7 @@ Cyprus has the highest car ownership rate in the EU, with only 3% of trips made 
 
 | Statistic | Impact |
 |-----------|--------|
-| **742 cars per 1,000 people** | Highest in EU |
+| **658 cars per 1,000 people** | Highest in EU |
 | **3% public transport usage** | In Nicosia urban area |
 | **0% railway** | No functioning rail since 1951 |
 | **Troodos villages** | 1-2 buses per day |
