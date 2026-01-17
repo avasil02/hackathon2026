@@ -1,9 +1,9 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import LastMileDemo from './LastMileDemo.jsx'
+import LastMileAI from './LastMileAI.jsx'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <LastMileDemo />
+    <LastMileAI />
   </React.StrictMode>,
 )

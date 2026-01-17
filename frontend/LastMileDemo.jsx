@@ -1,7 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import L from 'leaflet';
-import { CircleMarker, MapContainer, Marker, Polyline, TileLayer, Tooltip } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
+import React, { useState, useEffect, useCallback } from 'react';
 import { MapPin, Navigation, Users, Zap, Clock, Leaf, ChevronRight, Sparkles, Route, Car } from 'lucide-react';
 
 // Cyprus locations data
@@ -31,43 +28,10 @@ const CYPRUS_LOCATIONS = {
   ]
 };
 
-const ALL_DESTINATIONS = [
-  ...CYPRUS_LOCATIONS.villages,
-  ...CYPRUS_LOCATIONS.beaches,
-  ...CYPRUS_LOCATIONS.archaeological,
-];
-
-const VEHICLE_COLORS = ['#22c55e', '#38bdf8', '#f97316', '#a855f7', '#facc15', '#ef4444'];
-
-const getVehicleColor = (vehicleId) => {
-  if (!vehicleId) return VEHICLE_COLORS[0];
-  const hash = vehicleId.split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
-  return VEHICLE_COLORS[hash % VEHICLE_COLORS.length];
-};
-
-const toRadians = (deg) => (deg * Math.PI) / 180;
-const toDegrees = (rad) => (rad * 180) / Math.PI;
-
-const computeBearing = (from, to) => {
-  const [lat1, lng1] = from;
-  const [lat2, lng2] = to;
-  const dLng = toRadians(lng2 - lng1);
-  const y = Math.sin(dLng) * Math.cos(toRadians(lat2));
-  const x = Math.cos(toRadians(lat1)) * Math.sin(toRadians(lat2)) -
-    Math.sin(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.cos(dLng);
-  return (toDegrees(Math.atan2(y, x)) + 360) % 360;
-};
-
-const makeArrowIcon = (color, rotation) => L.divIcon({
-  className: 'route-arrow',
-  html: `<div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:12px solid ${color};transform:rotate(${rotation}deg);"></div>`,
-  iconSize: [12, 12],
-  iconAnchor: [6, 6],
-});
-
 // Simulated ride requests
 const generateRideRequest = () => {
-  const destination = ALL_DESTINATIONS[Math.floor(Math.random() * ALL_DESTINATIONS.length)];
+  const allLocations = [...CYPRUS_LOCATIONS.villages, ...CYPRUS_LOCATIONS.beaches, ...CYPRUS_LOCATIONS.archaeological];
+  const destination = allLocations[Math.floor(Math.random() * allLocations.length)];
   const origin = CYPRUS_LOCATIONS.cities[Math.floor(Math.random() * CYPRUS_LOCATIONS.cities.length)];
   const passengers = Math.floor(Math.random() * 4) + 1;
   
@@ -87,7 +51,6 @@ const simulateRLOptimization = (requests) => {
   // Simulate clustering and route optimization
   const clusters = [];
   const processed = new Set();
-  let vehicleIndex = 1;
   
   requests.forEach(req => {
     if (processed.has(req.id)) return;
@@ -95,11 +58,10 @@ const simulateRLOptimization = (requests) => {
     const cluster = [req];
     processed.add(req.id);
     
-    // Find nearby requests (same destination region/type)
-    const reqRegion = req.destination.region || req.destination.type;
+    // Find nearby requests (same destination region)
     requests.forEach(other => {
       if (!processed.has(other.id) && 
-          (other.destination.region || other.destination.type) === reqRegion &&
+          other.destination.region === req.destination.region &&
           cluster.length < 4) {
         cluster.push(other);
         processed.add(other.id);
@@ -107,35 +69,14 @@ const simulateRLOptimization = (requests) => {
     });
     
     if (cluster.length > 0) {
-      const destinationCounts = new Map();
-      const originCounts = new Map();
-      cluster.forEach(r => {
-        destinationCounts.set(r.destination.id, (destinationCounts.get(r.destination.id) || 0) + 1);
-        originCounts.set(r.origin.id, (originCounts.get(r.origin.id) || 0) + 1);
-      });
-      const primaryDestinationId = [...destinationCounts.entries()]
-        .sort((a, b) => b[1] - a[1])[0][0];
-      const primaryOriginId = [...originCounts.entries()]
-        .sort((a, b) => b[1] - a[1])[0][0];
-      const primaryOrigin = cluster.find(r => r.origin.id === primaryOriginId)?.origin || cluster[0].origin;
-      const uniqueDestinations = [
-        ...new Map(cluster.map(r => [r.destination.id, r.destination])).values(),
-      ];
-      const destinationIds = uniqueDestinations.map(dest => dest.id);
-
       clusters.push({
         id: Math.random().toString(36).substr(2, 9),
-        vehicleId: `LM-${String(vehicleIndex).padStart(3, '0')}`,
         requests: cluster,
         totalPassengers: cluster.reduce((sum, r) => sum + r.passengers, 0),
         estimatedSavings: Math.floor(cluster.length * 15 + Math.random() * 10),
         co2Saved: (cluster.length * 2.5).toFixed(1),
-        primaryDestinationId,
-        destinationIds,
-        routeStops: [primaryOrigin, ...uniqueDestinations],
-        route: uniqueDestinations.map(r => r.name),
+        route: cluster.map(r => r.destination.name),
       });
-      vehicleIndex += 1;
     }
   });
   
@@ -182,93 +123,6 @@ export default function LastMileDemo() {
   const [selectedDestination, setSelectedDestination] = useState(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [focusedDestinationId, setFocusedDestinationId] = useState(ALL_DESTINATIONS[0]?.id || null);
-  const [apiRoutes, setApiRoutes] = useState([]);
-  const [apiError, setApiError] = useState(null);
-
-  const focusedDestination = useMemo(
-    () => ALL_DESTINATIONS.find(dest => dest.id === focusedDestinationId) || null,
-    [focusedDestinationId]
-  );
-
-  const apiRouteViews = useMemo(() => (
-    apiRoutes.map(route => {
-      const routeStops = route.route || [];
-      const destinationIds = routeStops.map(stop => stop.id);
-      return {
-        id: route.vehicle_id,
-        vehicleId: route.vehicle_id,
-        routeStops,
-        destinationIds,
-        totalPassengers: route.total_passengers ?? 0,
-        estimatedSavings: Math.max(10, Math.round((route.efficiency_score || 50) / 2)),
-        co2Saved: (route.co2_saved_kg ?? 0).toFixed(1),
-      };
-    })
-  ), [apiRoutes]);
-
-  const activeRoutesForUI = apiRouteViews.length > 0 ? apiRouteViews : optimizedRoutes;
-
-  const routesForDestination = useMemo(() => {
-    if (!focusedDestinationId) return [];
-    return activeRoutesForUI.filter(route => route.destinationIds?.includes(focusedDestinationId));
-  }, [activeRoutesForUI, focusedDestinationId]);
-
-  const transportOptions = useMemo(() => {
-    if (!focusedDestinationId) return [];
-    return routesForDestination.map((route, index) => {
-      const capacity = route.totalPassengers <= 4 ? 4 : route.totalPassengers <= 8 ? 8 : 12;
-      const label = capacity === 4 ? 'E-Shuttle' : capacity === 8 ? 'Minibus' : 'Coach';
-      const availability = route.totalPassengers < capacity
-        ? `${capacity - route.totalPassengers} seats left`
-        : 'Full';
-      return {
-        id: route.vehicleId,
-        label,
-        capacity,
-        occupancy: route.totalPassengers,
-        availability,
-        eta: Math.max(6, 18 - index * 3),
-      };
-    });
-  }, [routesForDestination, focusedDestinationId]);
-
-  const apiMapRoutes = useMemo(() => (
-    apiRoutes.map(route => ({
-      ...route,
-      points: (route.route || []).map(stop => [stop.lat, stop.lng]),
-    }))
-  ), [apiRoutes]);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const fetchRoutes = async () => {
-      try {
-        const response = await fetch('http://localhost:8000/api/routes/active');
-        if (!response.ok) {
-          throw new Error(`API ${response.status}`);
-        }
-        const data = await response.json();
-        if (isMounted) {
-          setApiRoutes(Array.isArray(data) ? data : []);
-          setApiError(null);
-        }
-      } catch (err) {
-        if (isMounted) {
-          setApiError('API unavailable');
-          setApiRoutes([]);
-        }
-      }
-    };
-
-    fetchRoutes();
-    const interval = setInterval(fetchRoutes, 4000);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, []);
 
   // Simulate incoming requests
   useEffect(() => {
@@ -465,13 +319,10 @@ export default function LastMileDemo() {
               <div>
                 <label className="text-xs text-slate-500 uppercase tracking-wider mb-2 block">Destination</label>
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
-                  {ALL_DESTINATIONS.map(loc => (
+                  {[...CYPRUS_LOCATIONS.villages, ...CYPRUS_LOCATIONS.beaches].map(loc => (
                     <button
                       key={loc.id}
-                      onClick={() => {
-                        setSelectedDestination(loc);
-                        setFocusedDestinationId(loc.id);
-                      }}
+                      onClick={() => setSelectedDestination(loc)}
                       className={`w-full p-3 rounded-lg text-left text-sm transition-all flex items-center justify-between ${
                         selectedDestination?.id === loc.id
                           ? 'bg-cyan-500/30 border border-cyan-500 text-cyan-300'
@@ -528,136 +379,65 @@ export default function LastMileDemo() {
             </h2>
             
             {/* Simplified Cyprus Map Visualization */}
-            <div className="relative h-64 bg-slate-900/50 rounded-xl overflow-hidden mb-4" style={{ height: '16rem' }}>
-              <MapContainer
-                center={[35.035, 33.2]}
-                zoom={8}
-                minZoom={7}
-                maxZoom={12}
-                scrollWheelZoom={false}
-                className="h-full w-full"
-                style={{ height: '100%', width: '100%' }}
-                maxBounds={[[34.45, 32.0], [35.6, 34.6]]}
-              >
-                <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            <div className="relative h-64 bg-slate-900/50 rounded-xl overflow-hidden mb-4">
+              <svg viewBox="0 0 400 200" className="w-full h-full">
+                {/* Cyprus outline (simplified) */}
+                <path
+                  d="M50,100 Q100,50 200,60 Q300,70 350,100 Q320,150 200,140 Q100,130 50,100"
+                  fill="none"
+                  stroke="rgba(16, 185, 129, 0.3)"
+                  strokeWidth="2"
                 />
-
-                {apiMapRoutes.map(route => {
-                  if (!route.points || route.points.length < 2) return null;
-                  const color = getVehicleColor(route.vehicle_id);
-                  return (
-                    <Polyline
-                      key={route.vehicle_id}
-                      positions={route.points}
-                      pathOptions={{ color, weight: 4, opacity: 0.75 }}
+                
+                {/* Cities */}
+                {CYPRUS_LOCATIONS.cities.map((city, i) => (
+                  <g key={city.id}>
+                    <circle
+                      cx={80 + i * 80}
+                      cy={100}
+                      r="8"
+                      fill="#10b981"
+                      className="animate-pulse"
                     />
-                  );
-                })}
-
-                {apiMapRoutes.map(route => {
-                  if (!route.points || route.points.length < 2) return null;
-                  const midIndex = Math.max(1, Math.floor(route.points.length / 2));
-                  const from = route.points[midIndex - 1];
-                  const to = route.points[midIndex];
-                  const rotation = computeBearing(from, to);
-                  const color = getVehicleColor(route.vehicle_id);
-                  return (
-                    <Marker
-                      key={`${route.vehicle_id}-arrow`}
-                      position={to}
-                      icon={makeArrowIcon(color, rotation)}
-                    />
-                  );
-                })}
-
-                {apiMapRoutes.map(route => {
-                  if (!route.points || route.points.length === 0) return null;
-                  const [lat, lng] = route.points[0];
-                  const color = getVehicleColor(route.vehicle_id);
-                  return (
-                    <CircleMarker
-                      key={`${route.vehicle_id}-marker`}
-                      center={[lat, lng]}
-                      radius={7}
-                      pathOptions={{ color, fillColor: color, fillOpacity: 0.9 }}
+                    <text
+                      x={80 + i * 80}
+                      y={125}
+                      textAnchor="middle"
+                      fill="#94a3b8"
+                      fontSize="10"
                     >
-                      <Tooltip direction="top" offset={[0, -6]} opacity={1}>
-                        {route.vehicle_id}
-                      </Tooltip>
-                    </CircleMarker>
-                  );
-                })}
-              </MapContainer>
-              {apiError && (
-                <div className="absolute bottom-2 right-2 bg-slate-950/70 text-xs text-slate-300 px-2 py-1 rounded-lg">
-                  {apiError}
-                </div>
-              )}
-            </div>
-
-            {/* Destination focus + transport options */}
-            <div className="mb-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 uppercase tracking-wider">Destination Focus</p>
-                <select
-                  value={focusedDestinationId || ''}
-                  onChange={(event) => setFocusedDestinationId(event.target.value)}
-                  className="bg-white/5 border border-white/10 text-slate-200 text-xs rounded-lg px-3 py-2"
-                >
-                  {ALL_DESTINATIONS.map(dest => (
-                    <option key={dest.id} value={dest.id}>{dest.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white/5 rounded-lg p-3 border border-white/10">
-                  <p className="text-xs text-slate-500 mb-2">Optimal Route</p>
-                  <div className="space-y-2">
-                    {routesForDestination.length > 0 ? (
-                      routesForDestination.map(route => (
-                        <div key={route.id} className="text-xs text-slate-200">
-                          <span className="mono text-emerald-400">{route.vehicleId}</span>
-                          <span className="text-slate-400"> · </span>
-                          {route.routeStops.map(stop => stop.name).join(' → ')}
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-xs text-slate-500">Waiting for requests to this destination.</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="bg-white/5 rounded-lg p-3 border border-white/10">
-                  <p className="text-xs text-slate-500 mb-2">Available Transport</p>
-                  <div className="space-y-2">
-                    {transportOptions.length > 0 ? (
-                      transportOptions.map(option => (
-                        <div key={option.id} className="flex items-center justify-between text-xs text-slate-200">
-                          <div>
-                            <span className="font-semibold">{option.label}</span>
-                            <span className="text-slate-400"> · </span>
-                            <span className="mono">{option.id}</span>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-emerald-400">{option.availability}</p>
-                            <p className="text-slate-500">ETA {option.eta} min</p>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-xs text-slate-500">No vehicles assigned yet.</p>
-                    )}
-                  </div>
-                </div>
-              </div>
+                      {city.name}
+                    </text>
+                  </g>
+                ))}
+                
+                {/* Active routes */}
+                {optimizedRoutes.slice(0, 3).map((route, i) => (
+                  <path
+                    key={route.id}
+                    d={`M${80 + Math.random() * 80},100 Q${200},${60 + i * 20} ${280 + Math.random() * 40},${80 + i * 15}`}
+                    fill="none"
+                    stroke={['#06b6d4', '#8b5cf6', '#f59e0b'][i]}
+                    strokeWidth="2"
+                    strokeDasharray="5,5"
+                    className="animate-pulse"
+                  />
+                ))}
+                
+                {/* Vehicle icons */}
+                {[1, 2, 3].map((_, i) => (
+                  <g key={i} transform={`translate(${100 + i * 100}, ${90 + Math.sin(i) * 20})`}>
+                    <rect x="-8" y="-5" width="16" height="10" rx="2" fill="#06b6d4" />
+                    <circle cx="-5" cy="5" r="2" fill="#1e293b" />
+                    <circle cx="5" cy="5" r="2" fill="#1e293b" />
+                  </g>
+                ))}
+              </svg>
             </div>
             
             {/* Optimization Results */}
             <div className="space-y-2">
-              {(routesForDestination.length > 0 ? routesForDestination : activeRoutesForUI.slice(0, 3)).map((route, i) => (
+              {optimizedRoutes.slice(0, 3).map((route, i) => (
                 <div 
                   key={route.id}
                   className="bg-white/5 rounded-lg p-3 flex items-center justify-between animate-slide-up"
