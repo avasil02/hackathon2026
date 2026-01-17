@@ -175,15 +175,7 @@ lastmile-cy/
 
 ---
 
-## 🔗 Data Sources
-
-- **Cyprus GTFS-RT:** [traffic4cyprus.org.cy](https://www.traffic4cyprus.org.cy/dataset/publictransportrealtime_gtfs_rt)
-- **OpenStreetMap:** Road network for Cyprus
-- **Cyprus Open Data Portal:** Transportation statistics
-
----
-
-## 🏆 Hackathon Submission
+## Hackathon Submission
 
 **Team:** The Five Musketeers
 
@@ -191,17 +183,10 @@ lastmile-cy/
 
 ---
 
-## 📄 License
+## License
 
 MIT License - See [LICENSE](LICENSE) for details.
 
 ---
 
-## 🙏 Acknowledgments
-
-- Ministry of Transport, Communications and Works of Cyprus
-- Cyprus National Access Point for GTFS-RT data
-- The open-source community
-
----
 
