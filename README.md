@@ -1,4 +1,4 @@
-# 🚐 LastMile.cy
+# 🚐 LastMile AI
 
 ## AI-Powered Demand-Responsive Transit for Cyprus
 
@@ -8,7 +8,7 @@
 
 > **Solving Cyprus's #1 Transport Problem: The Last Mile Gap**
 
-Cyprus has the highest car ownership rate in the EU, with only 3% of trips made by public transport. Remote villages in Troodos, pristine beaches, and archaeological sites remain inaccessible without a private car. **LastMile.cy** uses Reinforcement Learning to create an on-demand, shared transit service that bridges this gap.
+Cyprus has the highest car ownership rate in the EU, with only 3% of trips made by public transport. Remote villages. **LastMile AI** uses Reinforcement Learning to create an on-demand, shared transit service that reduces the car emissions.
 
 ---
 
@@ -28,11 +28,11 @@ Cyprus has the highest car ownership rate in the EU, with only 3% of trips made 
 
 ## 💡 Our Solution
 
-**LastMile.cy** is an AI-powered demand-responsive transit system that:
+**LastMile AI** is an AI-powered demand-responsive transit system that:
 
 1. **Collects ride requests** from users wanting to visit remote destinations
 2. **Clusters requests** by destination region and time using learned embeddings
-3. **Optimizes routes** with Deep Q-Network (DQN) and PPO algorithms
+3. **Optimizes routes** with Deep Q-Network (DQN) algorithms
 4. **Dispatches shared minibuses** that serve multiple passengers efficiently
 
 ### Key Innovation: Reinforcement Learning for Dynamic Routing
@@ -185,11 +185,9 @@ lastmile-cy/
 
 ## 🏆 Hackathon Submission
 
-**Team:** [Your Team Name]
+**Team:** The Five Musketeers
 
 **Challenge:** Cyprus Transport Hackathon 2026
-
-**Category:** Sustainable Mobility / Last-Mile Solutions
 
 ---
 
@@ -207,8 +205,3 @@ MIT License - See [LICENSE](LICENSE) for details.
 
 ---
 
-<p align="center">
-  <strong>Built with 💚 for Cyprus</strong>
-  <br>
-  <em>Connecting every village, beach, and heritage site</em>
-</p>
